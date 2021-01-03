@@ -8,7 +8,6 @@ library(tictoc)
 ```
 
 ```{r}
-#TODO adapt this for Kaggle later
 #TODO add DL link for sqlite db
 
 setwd("D:/ML Exercises/Rstats-Excercises/02_CA_Accidents")
@@ -109,21 +108,6 @@ col_vict$victim_degree_of_injury <- recode(
     `6` = "suspected minor injury",
     `7` = "possible injury"
 )
-
-# col_vict$victim_safety_equipment_1 <- recode(
-#     col_vict$victim_safety_equipment_1,
-#     A = "None in Vehicle",
-#     B = "Unknown",
-#     C = "Lap Belt Used",
-#     D = "Lap Belt Not Used",
-#     E = "Shoulder Harness Used",
-#     F = "Shoulder Harness Not Used",
-#     G = "Lap/Shoulder Harness Used",
-#     H = "Lap/Shoulder Harness Not Used",
-#     J = "Passive Restraint Used",
-#     K = "Passive Restraint Not Used"
-# )
-
 ```
 
 ```{r}
@@ -148,7 +132,6 @@ nrow(col_vict)
 Wow, that was actually pretty underwhelming. I though there would be a higher number of kills for hit and runs than anything else.
 
 ```{r}
-
 col_vict %>% 
     select(alcohol_involved, victim_degree_of_injury) %>%
     mutate(alcohol_involved = as.factor(ifelse(is.na(alcohol_involved), "NO", "YES"))) %>% 
@@ -237,7 +220,7 @@ if (!file.exists(file.path("tunedXG.Rdata"))) {
         size = 20
     )
     
-    doParallel::registerDoParallel(cores = 24)
+    doParallel::registerDoParallel(cores = parallel::detectCores())
     set.seed(5598)
     tic()
     xgboost_tune <-
@@ -258,15 +241,15 @@ if (!file.exists(file.path("tunedXG.Rdata"))) {
 After we stick our recipe and model into a `workflow` object, we begin the tuning process. We are going to use a simple 10-fold cross validation scheme. We then define the grid of performance metrics we hope to calculate for each one of our hyperparameters, and we set the size to 
 
 ```{r}
-xgboost_tune %>% collect_metrics() %>% 
-    filter(.metric == "roc_auc") %>% 
-    select(mean, mtry:sample_size) %>% 
-    pivot_longer(mtry:sample_size, 
-                 names_to = "parameter", 
-                 values_to = "value") %>% 
-    ggplot(aes(value, mean, color = parameter)) +
-    geom_point(show.legend = FALSE) + 
-    facet_wrap(~ parameter, scales = "free_x")
+    xgboost_tune %>% collect_metrics() %>% 
+        filter(.metric == "roc_auc") %>% 
+        select(mean, mtry:sample_size) %>% 
+        pivot_longer(mtry:sample_size, 
+                     names_to = "parameter", 
+                     values_to = "value") %>% 
+        ggplot(aes(value, mean, color = parameter)) +
+        geom_point(show.legend = FALSE) + 
+        facet_wrap(~ parameter, scales = "free_x")
 ```
 
 Okay, so we can definitely tell that we did better with more trees. High learn rates also seem to do better. High `mtry` seems to consistently hit higher `roc_auc` with higher values. `min_n` with lower. Okay. 
@@ -312,11 +295,6 @@ final_res %>% collect_predictions() %>%
     conf_mat(truth = victim_degree_of_injury, estimate = .pred_class) %>% 
     autoplot(type = "heatmap") +
     theme(axis.text.x = element_text(face = "bold", angle = 45, size = 7, hjust = 1)) 
-    
-    # ggplot(aes(x = pred, y = 1, fill = victim_degree_of_injury)) +
-    # geom_col(position = "stack") +
-    # coord_polar() +
-    # theme_void()
 ```
 
 This model is apparently best at predicting `no injury` and `complaint of pain`. It often gets the two mixed up with each other. Otherwise it's not really a remarkable model and in fact only accurately predicts `killed` 3 times. Wow. How mediocre. Maybe we can try this again but remove the most frequent predictors? Just to make it more interesting?
